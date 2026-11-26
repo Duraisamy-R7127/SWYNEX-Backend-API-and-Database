@@ -1,0 +1,354 @@
+### =====================================================================
+### Lost & Found Hub - IntelliJ HTTP Client requests
+### 1. Start the app   2. Choose the "dev" environment (top right of this file)
+### 3. Run the requests from top to bottom (each login stores its token automatically)
+### =====================================================================
+
+### ---------- AUTH ----------
+
+### Register user 1 (item owner / finder)
+POST {{baseUrl}}/api/auth/register
+Content-Type: application/json
+
+{
+  "name": "Arun Kumar",
+  "email": "arun@example.com",
+  "password": "Passw0rd123",
+  "phone": "9876543210"
+}
+
+### Register user 2 (claimant)
+POST {{baseUrl}}/api/auth/register
+Content-Type: application/json
+
+{
+  "name": "Priya Devi",
+  "email": "priya@example.com",
+  "password": "Passw0rd123"
+}
+
+### Login user 1 -> saves {{userToken}}
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "arun@example.com",
+  "password": "Passw0rd123"
+}
+
+> {% client.global.set("userToken", response.body.data.token); %}
+
+### Login user 2 -> saves {{claimerToken}}
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "priya@example.com",
+  "password": "Passw0rd123"
+}
+
+> {% client.global.set("claimerToken", response.body.data.token); %}
+
+### Login admin -> saves {{adminToken}}
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{adminEmail}}",
+  "password": "{{adminPassword}}"
+}
+
+> {% client.global.set("adminToken", response.body.data.token); %}
+
+### Wrong password (expect 401)
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "arun@example.com",
+  "password": "WrongPass1"
+}
+
+### ---------- USER ----------
+
+### My profile
+GET {{baseUrl}}/api/users/me
+Authorization: Bearer {{userToken}}
+
+### Update my profile
+PUT {{baseUrl}}/api/users/me
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{
+  "name": "Arun Kumar S",
+  "phone": "9876543210"
+}
+
+### My posted items
+GET {{baseUrl}}/api/users/me/items?page=0&size=10
+Authorization: Bearer {{userToken}}
+
+### My claims
+GET {{baseUrl}}/api/users/me/claims
+Authorization: Bearer {{claimerToken}}
+
+### ---------- ITEMS ----------
+
+### Post a FOUND item with image -> saves {{itemId}}
+POST {{baseUrl}}/api/items
+Authorization: Bearer {{userToken}}
+Content-Type: multipart/form-data; boundary=WebAppBoundary
+
+--WebAppBoundary
+Content-Disposition: form-data; name="itemName"
+
+Black Leather Wallet
+--WebAppBoundary
+Content-Disposition: form-data; name="category"
+
+Wallet
+--WebAppBoundary
+Content-Disposition: form-data; name="description"
+
+Black wallet with a student ID card inside
+--WebAppBoundary
+Content-Disposition: form-data; name="location"
+
+Main Library
+--WebAppBoundary
+Content-Disposition: form-data; name="eventDate"
+
+2026-01-15
+--WebAppBoundary
+Content-Disposition: form-data; name="itemType"
+
+FOUND
+--WebAppBoundary
+Content-Disposition: form-data; name="image"; filename="wallet.png"
+Content-Type: image/png
+
+< ./sample-images/wallet.png
+--WebAppBoundary--
+
+> {% client.global.set("itemId", response.body.data.id); client.global.set("imageUrl", response.body.data.imageUrl); %}
+
+### Post a LOST item without image
+POST {{baseUrl}}/api/items
+Authorization: Bearer {{claimerToken}}
+Content-Type: multipart/form-data; boundary=WebAppBoundary
+
+--WebAppBoundary
+Content-Disposition: form-data; name="itemName"
+
+Red Umbrella
+--WebAppBoundary
+Content-Disposition: form-data; name="category"
+
+Accessories
+--WebAppBoundary
+Content-Disposition: form-data; name="description"
+
+Red foldable umbrella lost near the canteen
+--WebAppBoundary
+Content-Disposition: form-data; name="location"
+
+Canteen
+--WebAppBoundary
+Content-Disposition: form-data; name="eventDate"
+
+2026-01-20
+--WebAppBoundary
+Content-Disposition: form-data; name="itemType"
+
+LOST
+--WebAppBoundary--
+
+### Upload without login (expect 401)
+POST {{baseUrl}}/api/items
+Content-Type: multipart/form-data; boundary=WebAppBoundary
+
+--WebAppBoundary
+Content-Disposition: form-data; name="itemName"
+
+No login
+--WebAppBoundary--
+
+### List all items (public)
+GET {{baseUrl}}/api/items?page=0&size=10&sortBy=createdAt&direction=desc
+
+### Search by name
+GET {{baseUrl}}/api/items?keyword=wallet
+
+### Filter by category + location + type + status
+GET {{baseUrl}}/api/items?category=Wallet&location=library&type=FOUND&status=OPEN
+
+### Item by id
+GET {{baseUrl}}/api/items/{{itemId}}
+
+### Download item image (public)
+GET {{baseUrl}}{{imageUrl}}
+
+### Update item (owner or admin) - old image is kept when no new image is sent
+PUT {{baseUrl}}/api/items/{{itemId}}
+Authorization: Bearer {{userToken}}
+Content-Type: multipart/form-data; boundary=WebAppBoundary
+
+--WebAppBoundary
+Content-Disposition: form-data; name="itemName"
+
+Black Leather Wallet (updated)
+--WebAppBoundary
+Content-Disposition: form-data; name="category"
+
+Wallet
+--WebAppBoundary
+Content-Disposition: form-data; name="description"
+
+Black wallet with a student ID card and a bus pass
+--WebAppBoundary
+Content-Disposition: form-data; name="location"
+
+Main Library
+--WebAppBoundary
+Content-Disposition: form-data; name="eventDate"
+
+2026-01-15
+--WebAppBoundary
+Content-Disposition: form-data; name="itemType"
+
+FOUND
+--WebAppBoundary--
+
+### ---------- CLAIMS ----------
+
+### Claim own item (expect 400)
+POST {{baseUrl}}/api/claims
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{
+  "itemId": {{itemId}},
+  "proofDescription": "This is my own item and I want to claim it"
+}
+
+### Submit a claim as user 2 -> saves {{claimId}}
+POST {{baseUrl}}/api/claims
+Authorization: Bearer {{claimerToken}}
+Content-Type: application/json
+
+{
+  "itemId": {{itemId}},
+  "proofDescription": "The ID card inside has my name Priya Devi and roll number 21CS045"
+}
+
+> {% client.global.set("claimId", response.body.data.id); %}
+
+### Duplicate pending claim (expect 409)
+POST {{baseUrl}}/api/claims
+Authorization: Bearer {{claimerToken}}
+Content-Type: application/json
+
+{
+  "itemId": {{itemId}},
+  "proofDescription": "Trying to claim the same item again"
+}
+
+### My claims
+GET {{baseUrl}}/api/claims/my
+Authorization: Bearer {{claimerToken}}
+
+### Claim details
+GET {{baseUrl}}/api/claims/{{claimId}}
+Authorization: Bearer {{claimerToken}}
+
+### Track claim status
+GET {{baseUrl}}/api/claims/{{claimId}}/status
+Authorization: Bearer {{claimerToken}}
+
+### ---------- ADMIN ----------
+
+### Normal user calling an admin API (expect 403)
+GET {{baseUrl}}/api/admin/dashboard
+Authorization: Bearer {{userToken}}
+
+### Dashboard statistics
+GET {{baseUrl}}/api/admin/dashboard
+Authorization: Bearer {{adminToken}}
+
+### All users
+GET {{baseUrl}}/api/admin/users?page=0&size=10
+Authorization: Bearer {{adminToken}}
+
+### All items
+GET {{baseUrl}}/api/admin/items?page=0&size=10
+Authorization: Bearer {{adminToken}}
+
+### All claims (optional ?status=PENDING|APPROVED|REJECTED)
+GET {{baseUrl}}/api/admin/claims?page=0&size=10
+Authorization: Bearer {{adminToken}}
+
+### Pending claims
+GET {{baseUrl}}/api/admin/claims/pending
+Authorization: Bearer {{adminToken}}
+
+### Reject a claim (remarks required) - run this OR the approve request below for the same claim
+PATCH {{baseUrl}}/api/admin/claims/{{claimId}}/verify
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "status": "REJECTED",
+  "adminRemarks": "Roll number does not match the ID card"
+}
+
+### Approve a claim (other pending claims for the item are rejected automatically)
+PATCH {{baseUrl}}/api/admin/claims/{{claimId}}/verify
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "status": "APPROVED",
+  "adminRemarks": "ID card details verified"
+}
+
+### Change item status manually (OPEN | CLAIMED | RETURNED)
+PATCH {{baseUrl}}/api/admin/items/{{itemId}}/status
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "status": "CLAIMED"
+}
+
+### Mark item as RETURNED
+PATCH {{baseUrl}}/api/admin/items/{{itemId}}/returned
+Authorization: Bearer {{adminToken}}
+
+### ---------- NOTIFICATIONS ----------
+
+### My notifications
+GET {{baseUrl}}/api/notifications?page=0&size=20
+Authorization: Bearer {{claimerToken}}
+
+### Unread count
+GET {{baseUrl}}/api/notifications/unread-count
+Authorization: Bearer {{claimerToken}}
+
+### Mark one notification as read (replace 1 with a real id)
+PATCH {{baseUrl}}/api/notifications/1/read
+Authorization: Bearer {{claimerToken}}
+
+### Mark all as read
+PATCH {{baseUrl}}/api/notifications/read-all
+Authorization: Bearer {{claimerToken}}
+
+### ---------- DELETE / LOGOUT ----------
+
+### Delete an item (owner or admin)
+DELETE {{baseUrl}}/api/items/{{itemId}}
+Authorization: Bearer {{userToken}}
+
+### Logout (token stops working afterwards)
+POST {{baseUrl}}/api/auth/logout
+Authorization: Bearer {{userToken}}
